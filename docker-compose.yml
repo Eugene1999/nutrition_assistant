@@ -1,0 +1,64 @@
+services:
+  postgres:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+    POSTGRES_USER: ${POSTGRES_USER}
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    POSTGRES_DB: ${POSTGRES_DB}
+    TZ: Europe/Kyiv
+    volumes:
+    - n8n_postgres:/var/lib/postgresql/data
+    healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+    interval: 10s
+    timeout: 5s
+    retries: 5
+
+
+  n8n:
+    image: n8nio/n8n:1.74.0 # обновляй вручную, без сюрпризов
+    restart: unless-stopped
+    depends_on:
+    - postgres
+    environment:
+    DB_TYPE: postgresdb
+    DB_POSTGRESDB_HOST: postgres
+    DB_POSTGRESDB_PORT: 5432
+    DB_POSTGRESDB_DATABASE: ${POSTGRES_DB}
+    DB_POSTGRESDB_USER: ${POSTGRES_USER}
+    DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD}
+    N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+    N8N_HOST: ${DOMAIN}
+    N8N_PORT: 5678
+    N8N_PROTOCOL: https
+    WEBHOOK_URL: https://${DOMAIN}/
+    GENERIC_TIMEZONE: Europe/Kyiv
+    N8N_BASIC_AUTH_ACTIVE: ${BASIC_AUTH_ACTIVE}
+    N8N_BASIC_AUTH_USER: ${BASIC_AUTH_USER}
+    N8N_BASIC_AUTH_PASSWORD: ${BASIC_AUTH_PASSWORD}
+    volumes:
+    - n8n_data:/home/node/.n8n
+
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+    - "80:80"
+    - "443:443"
+    environment:
+    DOMAIN: ${DOMAIN}
+    volumes:
+    - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile
+    - caddy_data:/data
+    - caddy_config:/config
+    depends_on:
+    - n8n
+
+
+volumes:
+  n8n_postgres:
+  n8n_data:
+  caddy_data:
+  caddy_config:

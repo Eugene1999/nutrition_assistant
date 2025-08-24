@@ -1,0 +1,43 @@
+name: Deploy n8n (trunk)
+
+
+on:
+    push:
+        branches: ["main"]
+    workflow_dispatch:
+
+
+jobs:
+    deploy:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Copy compose and Caddyfile to server
+              uses: appleboy/scp-action@v0.1.7
+              with:
+                host: ${{ secrets.SSH_HOST }}
+                username: ${{ secrets.SSH_USER }}
+                port: ${{ secrets.SSH_PORT }}
+                key: ${{ secrets.SSH_KEY }}
+                source: "docker-compose.yml,docker/caddy/Caddyfile"
+                target: "~/n8n-infra"
+
+            - name: Deploy over SSH
+              uses: appleboy/ssh-action@v1.2.0
+              with:
+                host: ${{ secrets.SSH_HOST }}
+                username: ${{ secrets.SSH_USER }}
+                port: ${{ secrets.SSH_PORT }}
+                key: ${{ secrets.SSH_KEY }}
+                script: |
+                    set -e
+                    cd ~/n8n-infra
+                    if [ ! -f .env ]; then
+                    echo ".env not found. Create it once from .env.example and keep secrets only on server."
+                    exit 1
+                    fi
+                    # Перетянуть свежие образы и поднять
+                    docker compose pull || true
+                    docker compose up -d
+                    docker system prune -f || true
